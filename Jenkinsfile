@@ -4,7 +4,7 @@ pipeline {
     environment {
         AWS_REGION = 'us-east-1'
         ECR_REPO   = '811825121504.dkr.ecr.us-east-1.amazonaws.com/system-health-dashboard'
-        EC2_HOST   = '100.31.146.221'
+        EC2_HOST   = 'NEW_EC2_IP'
         IMAGE_TAG  = "${env.BUILD_NUMBER}"
         DB_HOST    = 'health-dashboard-db.c496qquuyrh9.us-east-1.rds.amazonaws.com'
         DB_USER    = 'postgres'
@@ -43,9 +43,11 @@ pipeline {
                     docker login --username AWS --password-stdin $ECR_REPO
 
                     docker build -t $ECR_REPO:$IMAGE_TAG ./app/backend
+
                     docker build \
                       --build-arg VITE_API_URL=http://$EC2_HOST \
-                      -t $ECR_REPO:frontend-$IMAGE_TAG ./app/frontend
+                      -t $ECR_REPO:frontend-$IMAGE_TAG \
+                      -f app/frontend/Dockerfile .
                 '''
             }
         }
@@ -64,40 +66,36 @@ pipeline {
             }
         }
 
-        stage('Deploy to EC2') {
+        stage('Deploy') {
             when { branch 'main' }
             steps {
                 withCredentials([string(credentialsId: 'db-password', variable: 'DB_PASSWORD')]) {
-                    sshagent(['ec2-ssh-key']) {
-                        sh '''
-                            ssh -o StrictHostKeyChecking=no ec2-user@$EC2_HOST "
-                                aws ecr get-login-password --region $AWS_REGION | \
-                                docker login --username AWS --password-stdin $ECR_REPO
+                    sh '''
+                        aws ecr get-login-password --region $AWS_REGION | \
+                        docker login --username AWS --password-stdin $ECR_REPO
 
-                                docker pull $ECR_REPO:$IMAGE_TAG
-                                docker pull $ECR_REPO:frontend-$IMAGE_TAG
+                        docker pull $ECR_REPO:$IMAGE_TAG
+                        docker pull $ECR_REPO:frontend-$IMAGE_TAG
 
-                                docker stop backend frontend nginx-proxy || true
-                                docker rm backend frontend nginx-proxy || true
+                        docker stop backend frontend || true
+                        docker rm backend frontend || true
 
-                                docker run -d --name backend \
-                                  -e DB_HOST=$DB_HOST \
-                                  -e DB_PORT=5432 \
-                                  -e DB_NAME=$DB_NAME \
-                                  -e DB_USER=$DB_USER \
-                                  -e DB_PASSWORD=$DB_PASSWORD \
-                                  -e PORT=3000 \
-                                  --restart unless-stopped \
-                                  $ECR_REPO:$IMAGE_TAG
+                        docker run -d --name backend \
+                          -e DB_HOST=$DB_HOST \
+                          -e DB_PORT=5432 \
+                          -e DB_NAME=$DB_NAME \
+                          -e DB_USER=$DB_USER \
+                          -e DB_PASSWORD=$DB_PASSWORD \
+                          -e PORT=3000 \
+                          --restart unless-stopped \
+                          $ECR_REPO:$IMAGE_TAG
 
-                                docker run -d --name frontend \
-                                  --link backend:backend \
-                                  -p 80:80 \
-                                  --restart unless-stopped \
-                                  $ECR_REPO:frontend-$IMAGE_TAG
-                            "
-                        '''
-                    }
+                        docker run -d --name frontend \
+                          --link backend:backend \
+                          -p 80:80 \
+                          --restart unless-stopped \
+                          $ECR_REPO:frontend-$IMAGE_TAG
+                    '''
                 }
             }
         }
@@ -109,14 +107,14 @@ pipeline {
             slackSend(
                 channel: '#deployments',
                 color: 'good',
-                message: "✅ Deploy SUCCESS — Build #${env.BUILD_NUMBER} | ${env.JOB_NAME} | http://${EC2_HOST}"
+                message: "✅ SUCCESS — Build #${env.BUILD_NUMBER} | http://${EC2_HOST}"
             )
         }
         failure {
             slackSend(
                 channel: '#deployments',
                 color: 'danger',
-                message: "❌ Deploy FAILED — Build #${env.BUILD_NUMBER} | ${env.JOB_NAME}"
+                message: "❌ FAILED — Build #${env.BUILD_NUMBER} | ${env.JOB_NAME}"
             )
         }
     }

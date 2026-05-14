@@ -131,15 +131,46 @@ resource "aws_instance" "app_server" {
   key_name               = var.key_pair_name
   iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
 
+  root_block_device {
+    volume_size = 20
+    volume_type = "gp3"
+  }
+
   user_data = <<-EOF
     #!/bin/bash
     yum update -y
-    yum install -y docker
+
+    # Install Docker
+    yum install -y docker git
     service docker start
     usermod -a -G docker ec2-user
     chkconfig docker on
-    curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+
+    # Install Docker Compose
+    curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
+      -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
+
+    # Install Java 17 (required for Jenkins)
+    amazon-linux-extras enable java-openjdk17 || true
+    yum install -y java-17-amazon-corretto
+
+    # Install Jenkins
+    wget -O /etc/yum.repos.d/jenkins.repo \
+      https://pkg.jenkins.io/redhat-stable/jenkins.repo
+    rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+    yum install -y jenkins
+
+    # Add jenkins user to docker group
+    usermod -a -G docker jenkins
+
+    # Install Node.js 20
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+    yum install -y nodejs
+
+    # Start Jenkins
+    systemctl start jenkins
+    systemctl enable jenkins
   EOF
 
   tags = { Name = "health-dashboard-server" }
