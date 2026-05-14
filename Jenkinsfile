@@ -4,7 +4,7 @@ pipeline {
     environment {
         AWS_REGION = 'us-east-1'
         ECR_REPO   = '811825121504.dkr.ecr.us-east-1.amazonaws.com/system-health-dashboard'
-        EC2_HOST   = 'NEW_EC2_IP'
+        EC2_HOST   = '54.161.207.110'
         IMAGE_TAG  = "${env.BUILD_NUMBER}"
         DB_HOST    = 'health-dashboard-db.c496qquuyrh9.us-east-1.rds.amazonaws.com'
         DB_USER    = 'postgres'
@@ -18,7 +18,6 @@ pipeline {
     stages {
 
         stage('Build & Test') {
-            when { branch 'main' }
             steps {
                 dir('app/backend') {
                     sh 'npm ci'
@@ -36,7 +35,6 @@ pipeline {
         }
 
         stage('Docker Build') {
-            when { branch 'main' }
             steps {
                 sh '''
                     aws ecr get-login-password --region $AWS_REGION | \
@@ -53,7 +51,6 @@ pipeline {
         }
 
         stage('Push to ECR') {
-            when { branch 'main' }
             steps {
                 sh '''
                     docker push $ECR_REPO:$IMAGE_TAG
@@ -67,7 +64,6 @@ pipeline {
         }
 
         stage('Deploy') {
-            when { branch 'main' }
             steps {
                 withCredentials([string(credentialsId: 'db-password', variable: 'DB_PASSWORD')]) {
                     sh '''
@@ -104,18 +100,10 @@ pipeline {
     post {
         success {
             sh 'sleep 15 && curl -f http://$EC2_HOST/health || exit 1'
-            slackSend(
-                channel: '#deployments',
-                color: 'good',
-                message: "✅ SUCCESS — Build #${env.BUILD_NUMBER} | http://${EC2_HOST}"
-            )
+            echo 'Deployment successful'
         }
         failure {
-            slackSend(
-                channel: '#deployments',
-                color: 'danger',
-                message: "❌ FAILED — Build #${env.BUILD_NUMBER} | ${env.JOB_NAME}"
-            )
+            echo 'Pipeline failed — check console output'
         }
     }
 }
