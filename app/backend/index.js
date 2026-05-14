@@ -22,7 +22,14 @@ const pool = new Pool({
 
 });
 
+const cors = require('cors');
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost', 'http://localhost:80']
+}));
+
 app.use(express.json());
+
+
 
 // Root
 
