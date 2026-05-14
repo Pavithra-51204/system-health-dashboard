@@ -46,6 +46,7 @@ pipeline {
 
                     cp nginx/nginx.conf app/frontend/nginx.conf
                     docker build \
+                    --no-cache \
                     --build-arg VITE_API_URL=http://$EC2_HOST \
                     -t $ECR_REPO:frontend-$IMAGE_TAG \
                     app/frontend
