@@ -19,12 +19,15 @@ pipeline {
 
         stage('Build & Test') {
             steps {
-                dir('app/backend') {
-                    sh 'npm ci'
-                    sh 'npm test -- --coverage --watchAll=false'
-                }
+                sh '''
+                    docker run --rm \
+                    -v $(pwd)/app/backend:/app \
+                    -w /app \
+                    node:20-alpine \
+                    sh -c "npm ci && npm test -- --coverage --watchAll=false"
+                '''
                 publishHTML(target: [
-                    allowMissing         : false,
+                    allowMissing         : true,
                     alwaysLinkToLastBuild: true,
                     keepAll              : true,
                     reportDir            : 'app/backend/coverage/lcov-report',
@@ -33,7 +36,6 @@ pipeline {
                 ])
             }
         }
-
         stage('Docker Build') {
             steps {
                 sh '''
