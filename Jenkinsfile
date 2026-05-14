@@ -44,10 +44,12 @@ pipeline {
 
                     docker build -t $ECR_REPO:$IMAGE_TAG ./app/backend
 
+                    cp nginx/nginx.conf app/frontend/nginx.conf
                     docker build \
-                      --build-arg VITE_API_URL=http://$EC2_HOST \
-                      -t $ECR_REPO:frontend-$IMAGE_TAG \
-                      -f app/frontend/Dockerfile .
+                    --build-arg VITE_API_URL=http://$EC2_HOST \
+                    -t $ECR_REPO:frontend-$IMAGE_TAG \
+                    app/frontend
+                    rm app/frontend/nginx.conf
                 '''
             }
         }
