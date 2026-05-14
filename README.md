@@ -334,18 +334,3 @@ aws s3api get-object \
 
 ---
 
-## Cost Notes
-
-This project uses AWS resources outside the free tier:
-
-- EC2 t3.small — ~$0.023/hour
-- RDS db.t3.micro — free tier eligible (first 12 months)
-- ECR — free tier 500MB/month
-- S3 — negligible
-
-**Terminate all resources after assessment to avoid charges:**
-
-```bash
-cd terraform
-terraform destroy -auto-approve
-```
