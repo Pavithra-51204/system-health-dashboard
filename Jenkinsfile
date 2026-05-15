@@ -72,58 +72,33 @@ pipeline {
         stage('Deploy') {
             steps {
                 withCredentials([string(credentialsId: 'db-password', variable: 'DB_PASSWORD')]) {
-                    sh '''
-                        aws ecr get-login-password --region $AWS_REGION | \
-                        docker login --username AWS --password-stdin $ECR_REPO
-
-                        docker pull $ECR_REPO:$IMAGE_TAG
-                        docker pull $ECR_REPO:frontend-$IMAGE_TAG
-
-                        docker stop backend frontend || true
-                        docker rm backend frontend || true
-
-                        docker run -d --name backend \
-                          -e DB_HOST=$DB_HOST \
-                          -e DB_PORT=5432 \
-                          -e DB_NAME=$DB_NAME \
-                          -e DB_USER=$DB_USER \
-                          -e DB_PASSWORD=$DB_PASSWORD \
-                          -e PORT=3000 \
-                          --restart unless-stopped \
-                          $ECR_REPO:$IMAGE_TAG
-
-                        docker run -d --name frontend \
-                          --link backend:backend \
-                          -p 80:80 \
-                          -p 443:443 \
-                          -v /etc/letsencrypt:/etc/letsencrypt:ro \
-                          --restart unless-stopped \
-                          $ECR_REPO:frontend-$IMAGE_TAG
-
-                        sleep 10
-
-                        docker exec backend node -e "
-                        const { Pool } = require('pg');
-                        const pool = new Pool({
-                          host: '$DB_HOST',
-                          port: 5432,
-                          database: '$DB_NAME',
-                          user: '$DB_USER',
-                          password: '$DB_PASSWORD',
-                          ssl: { rejectUnauthorized: false }
-                        });
-                        pool.query(
-                          'INSERT INTO deployments (version, status) VALUES (\$1, \$2)',
-                          ['v1.0-build-$IMAGE_TAG', 'success']
-                        ).then(() => {
-                          console.log('Deployment logged');
-                          process.exit(0);
-                        }).catch(err => {
-                          console.log('Log error:', err.message);
-                          process.exit(0);
-                        });
-                        "
-                    '''
+                // Write deploy log script to file and execute
+                sh '''
+                    cat > /tmp/log-deploy.js << 'JSEOF'
+                    const { Pool } = require('pg');
+                    const pool = new Pool({
+                    host: process.env.DB_HOST,
+                    port: 5432,
+                    database: process.env.DB_NAME,
+                    user: process.env.DB_USER,
+                    password: process.env.DB_PASSWORD,
+                    ssl: { rejectUnauthorized: false }
+                    });
+                    const version = process.env.BUILD_VERSION;
+                    pool.query(
+                    'INSERT INTO deployments (version, status) VALUES ($1, $2)',
+                    [version, 'success']
+                    ).then(() => {
+                    console.log('Deployment logged:', version);
+                    process.exit(0);
+                    }).catch(err => {
+                    console.log('Log error:', err.message);
+                    process.exit(0);
+                    });
+                JSEOF
+                    docker cp /tmp/log-deploy.js backend:/tmp/log-deploy.js
+                    docker exec -e BUILD_VERSION=v1.0-build-$IMAGE_TAG backend node /tmp/log-deploy.js
+                '''
                 }
             }
         }
