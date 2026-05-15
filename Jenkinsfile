@@ -105,16 +105,16 @@ pipeline {
 
                     sh """
                         docker exec backend node -e "
-                          var pg = require('pg');
-                          var pool = new pg.Pool({
+                        var pg = require('pg');
+                        var pool = new pg.Pool({
                             host: '${DB_HOST}',
                             port: 5432,
                             database: '${DB_NAME}',
                             user: '${DB_USER}',
-                            password: '${DB_PASSWORD}',
+                            password: '\${DB_PASSWORD}',
                             ssl: {rejectUnauthorized: false}
-                          });
-                          pool.query('INSERT INTO deployments (version, status) VALUES (\\$1, \\$2)', ['v1.0-build-${IMAGE_TAG}', 'success'])
+                        });
+                        pool.query('INSERT INTO deployments (version, status) VALUES (\\\$1, \\\$2)', ['v1.0-build-${IMAGE_TAG}', 'success'])
                             .then(function(){ console.log('Deployment logged'); process.exit(0); })
                             .catch(function(e){ console.log('Log error:', e.message); process.exit(0); });
                         "
