@@ -4,7 +4,7 @@ pipeline {
     environment {
         AWS_REGION = 'us-east-1'
         ECR_REPO   = '811825121504.dkr.ecr.us-east-1.amazonaws.com/system-health-dashboard'
-        EC2_HOST = 'system-health.duckdns.org'
+        EC2_HOST   = 'system-health.duckdns.org'
         IMAGE_TAG  = "${env.BUILD_NUMBER}"
         DB_HOST    = 'health-dashboard-db.c496qquuyrh9.us-east-1.rds.amazonaws.com'
         DB_USER    = 'postgres'
@@ -21,10 +21,10 @@ pipeline {
             steps {
                 sh '''
                     docker run --rm \
-                    -v $(pwd)/app/backend:/app \
-                    -w /app \
-                    node:20-alpine \
-                    sh -c "npm ci && npm test -- --coverage --watchAll=false"
+                      -v $(pwd)/app/backend:/app \
+                      -w /app \
+                      node:20-alpine \
+                      sh -c "npm ci && npm test -- --coverage --watchAll=false"
                 '''
                 publishHTML(target: [
                     allowMissing         : true,
@@ -36,6 +36,7 @@ pipeline {
                 ])
             }
         }
+
         stage('Docker Build') {
             steps {
                 sh '''
@@ -46,10 +47,10 @@ pipeline {
 
                     cp nginx/nginx.conf app/frontend/nginx.conf
                     docker build \
-                    --no-cache \
-                    --build-arg VITE_API_URL=https://$EC2_HOST \
-                    -t $ECR_REPO:frontend-$IMAGE_TAG \
-                    app/frontend
+                      --no-cache \
+                      --build-arg VITE_API_URL=https://$EC2_HOST \
+                      -t $ECR_REPO:frontend-$IMAGE_TAG \
+                      app/frontend
                     rm app/frontend/nginx.conf
                 '''
             }
@@ -92,12 +93,36 @@ pipeline {
                           $ECR_REPO:$IMAGE_TAG
 
                         docker run -d --name frontend \
-                        --link backend:backend \
-                        -p 80:80 \
-                        -p 443:443 \
-                        -v /etc/letsencrypt:/etc/letsencrypt:ro \
-                        --restart unless-stopped \
-                        $ECR_REPO:frontend-$IMAGE_TAG
+                          --link backend:backend \
+                          -p 80:80 \
+                          -p 443:443 \
+                          -v /etc/letsencrypt:/etc/letsencrypt:ro \
+                          --restart unless-stopped \
+                          $ECR_REPO:frontend-$IMAGE_TAG
+
+                        sleep 10
+
+                        docker exec backend node -e "
+                        const { Pool } = require('pg');
+                        const pool = new Pool({
+                          host: '$DB_HOST',
+                          port: 5432,
+                          database: '$DB_NAME',
+                          user: '$DB_USER',
+                          password: '$DB_PASSWORD',
+                          ssl: { rejectUnauthorized: false }
+                        });
+                        pool.query(
+                          'INSERT INTO deployments (version, status) VALUES (\$1, \$2)',
+                          ['v1.0-build-$IMAGE_TAG', 'success']
+                        ).then(() => {
+                          console.log('Deployment logged');
+                          process.exit(0);
+                        }).catch(err => {
+                          console.log('Log error:', err.message);
+                          process.exit(0);
+                        });
+                        "
                     '''
                 }
             }
