@@ -4,7 +4,7 @@ pipeline {
     environment {
         AWS_REGION = 'us-east-1'
         ECR_REPO   = '811825121504.dkr.ecr.us-east-1.amazonaws.com/system-health-dashboard'
-        EC2_HOST   = '54.161.207.110'
+        EC2_HOST = 'system-health.duckdns.org'
         IMAGE_TAG  = "${env.BUILD_NUMBER}"
         DB_HOST    = 'health-dashboard-db.c496qquuyrh9.us-east-1.rds.amazonaws.com'
         DB_USER    = 'postgres'

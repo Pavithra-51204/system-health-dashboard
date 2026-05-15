@@ -1,7 +1,7 @@
 # System Health Dashboard
 > A full-stack DevOps assessment project — CI/CD pipeline, IaC, containerisation, and cloud deployment.
 
-**Live Demo:** http://54.161.207.110
+**Live Demo:** http://system-health.duckdns.org
 
 ---
 
