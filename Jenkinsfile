@@ -47,7 +47,7 @@ pipeline {
                     cp nginx/nginx.conf app/frontend/nginx.conf
                     docker build \
                     --no-cache \
-                    --build-arg VITE_API_URL=http://$EC2_HOST \
+                    --build-arg VITE_API_URL=https://$EC2_HOST \
                     -t $ECR_REPO:frontend-$IMAGE_TAG \
                     app/frontend
                     rm app/frontend/nginx.conf
@@ -92,10 +92,12 @@ pipeline {
                           $ECR_REPO:$IMAGE_TAG
 
                         docker run -d --name frontend \
-                          --link backend:backend \
-                          -p 80:80 \
-                          --restart unless-stopped \
-                          $ECR_REPO:frontend-$IMAGE_TAG
+                        --link backend:backend \
+                        -p 80:80 \
+                        -p 443:443 \
+                        -v /etc/letsencrypt:/etc/letsencrypt:ro \
+                        --restart unless-stopped \
+                        $ECR_REPO:frontend-$IMAGE_TAG
                     '''
                 }
             }
@@ -104,7 +106,7 @@ pipeline {
 
     post {
         success {
-            sh 'sleep 15 && curl -f http://$EC2_HOST/health || exit 1'
+            sh 'sleep 15 && curl -f https://$EC2_HOST/health || exit 1'
             echo 'Deployment successful'
         }
         failure {
