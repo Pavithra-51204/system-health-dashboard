@@ -127,9 +127,23 @@ pipeline {
     post {
         success {
             sh 'sleep 15 && curl -f https://$EC2_HOST/health || exit 1'
+            withCredentials([string(credentialsId: 'slack-webhook', variable: 'SLACK_URL')]) {
+                sh """
+                    curl -s -X POST -H 'Content-type: application/json' \
+                    --data '{"text":"✅ *DEPLOY SUCCESS*\\nBuild: #${env.BUILD_NUMBER}\\nApp: https://${EC2_HOST}\\nHealth: https://${EC2_HOST}/health"}' \
+                    \$SLACK_URL
+                """
+            }
             echo 'Deployment successful'
         }
         failure {
+            withCredentials([string(credentialsId: 'slack-webhook', variable: 'SLACK_URL')]) {
+                sh """
+                    curl -s -X POST -H 'Content-type: application/json' \
+                    --data '{"text":"❌ *DEPLOY FAILED*\\nBuild: #${env.BUILD_NUMBER}\\nConsole: ${env.BUILD_URL}console"}' \
+                    \$SLACK_URL
+                """
+            }
             echo 'Pipeline failed — check console output'
         }
     }
